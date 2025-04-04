@@ -1,0 +1,16 @@
+services:
+  facerecognition-api:
+    build: .
+    container_name: facerecognition-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ../images:/app/images
+    networks:
+      - facerec-net
+
+networks:
+  facerec-net:
+    external: true
