@@ -1,23 +1,22 @@
-from fastapi import FastAPI, UploadFile, Form, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
 import os
+import uuid
 from face_engine import FaceEngine
 
 app = FastAPI()
 
-# Permitir todo (ideal para testing, cambia en producción)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # O pon ["http://localhost:5500"] o el dominio del frontend
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
+# Asegura existencia de carpeta para imágenes
+os.makedirs("images", exist_ok=True)
 engine = FaceEngine()
 
 class VectorRequest(BaseModel):
@@ -25,31 +24,55 @@ class VectorRequest(BaseModel):
 
 @app.post("/register")
 async def register(name: str = Form(...), file: UploadFile = Form(...)):
-    file_location = f"images/{file.filename}"
-    with open(file_location, "wb") as buffer:
+    filename = f"{uuid.uuid4().hex}_{file.filename}"
+    file_path = os.path.join("images", filename)
+    with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    
-    success = engine.register_face(name, file_location)
-    
-    if not success:
-        return {"registered": False, "error": "No se detectó rostro en la imagen"}
-    
-    return {"registered": True}
+
+    success = engine.register_face(name, file_path)
+    return {
+        "registered": success,
+        "message": "✅ Registrado correctamente" if success else "❌ No se detectó rostro"
+    }
 
 @app.post("/search")
 async def search(file: UploadFile):
-    file_location = f"images/{file.filename}"
-    with open(file_location, "wb") as buffer:
+    import uuid, os, shutil
+
+    # Ruta temporal para guardar la imagen
+    file_path = os.path.join("images", f"{uuid.uuid4().hex}_{file.filename}")
+    
+    # Guardar temporalmente el archivo
+    with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    result = engine.search_face(file_location)
-    return {"match": result}
+
+    # Ejecutar reconocimiento facial
+    result = engine.search_face(file_path)
+
+    # Eliminar el archivo temporal
+    try:
+        os.remove(file_path)
+    except Exception as e:
+        print(f"[WARN] No se pudo eliminar la imagen temporal: {e}")
+
+    return result
+
 
 @app.post("/search-vector")
 async def search_vector(data: VectorRequest):
-    result = engine.search_embedding(data.embedding)
-    return result
+    return engine.search_embedding(data.embedding)
 
-# ➕ Esto permite ejecutar el backend con: python index.py
+@app.get("/")
+def root():
+    return {"status": "🚀 Face Recognition API is running"}
+
+
+@app.post("/reset")
+async def reset_index():
+    engine.reset_index()
+    return {"message": "🧹 Índice de OpenSearch reiniciado correctamente"}image-generator-serviceimage-generator-service
+
+# 🟢 Punto de entrada
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("index:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("index:app", host="127.0.0.1", port=8010, reload=True)

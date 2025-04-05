@@ -1,0 +1,10 @@
+api/venv/*
+api/.env
+.DS_Store
+api/.env
+api/debug_failed.jpg
+api/.env
+api/images/
+api/__pycache__/
+api/images/registry.csv
+api/images/registry.csv
